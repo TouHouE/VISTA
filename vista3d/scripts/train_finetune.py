@@ -567,8 +567,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}"
             )
 
-
-
         try:
             del inputs, labels, inputs_l, labels_l, batch_data
         except BaseException:
@@ -648,7 +646,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 x in str(e).lower() for x in ("memory", "cuda", "cudnn")
                             ):
                                 raise e
-                            logger.warning(e)
+                            logger.warning(f'{e}')
+                            logger.warning(f'With file: {val_data["image"].meta["filename_or_obj"][0]}')
+                            logger.warning(f'Shape: {val_data["image"].shape}')
+
                             finished = False
 
                         if finished:

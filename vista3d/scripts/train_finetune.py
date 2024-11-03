@@ -39,6 +39,7 @@ from monai.utils import set_determinism
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import wandb
 
 from vista3d import vista_model_registry
 
@@ -300,6 +301,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         prefetch_factor=1,
         persistent_workers=False,
     )
+    wandb_runner = None
+    if world_size > 1 and wandb_runner is None and (wandb_cfg := parser.get_parsed_content('wandb'))['enable']:
+        wandb_name = wandb_cfg['name']
+        wandb_dir = os.path.join(parser.get_parsed_content('bundle_root'), wandb_cfg['name'])
+        wandb_runner = wandb.init(dir=parser.get_parsed_content('bundle_root'), project='Vista3D', tags=['finetune'], config=parser.config)
+
 
     # ---------  Start training  ---------
     """ Notes: The training script is directly modified from auto3dseg.
@@ -543,6 +550,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     writer.add_scalar(
                         "train/loss", loss.item(), epoch_len * _round + step
                     )
+                    if wandb_runner is not None:
+                        wandb_runner.log({
+                            'Train Loss': loss.item(),
+                            'Train Steps': epoch_len * _round + step
+                        })
 
         if world_size > 1:
             dist.all_reduce(loss_torch, op=torch.distributed.ReduceOp.SUM)
@@ -554,6 +566,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 f"{time.time() - e_time:.4f} Epoch {epoch} average loss: {loss_torch_epoch:.4f}, "
                 f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}"
             )
+
+
+
         try:
             del inputs, labels, inputs_l, labels_l, batch_data
         except BaseException:
@@ -723,11 +738,21 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             writer.add_scalar(
                                 f"val_class/acc_{class_names[_c + 1]}", v, epoch
                             )
+                            if wandb_runner is not None:
+                                wandb_runner.log({
+                                    f'Dice-{class_names[_c + 1]}': v,
+                                    f'Epoch': epoch
+                                })
                             logger.debug(
                                 f"Evaluation metric - class {_c + 1} {class_names[_c + 1]}: {v:.4f}"
                             )
                         except BaseException:
                             writer.add_scalar(f"val_class/acc_{_c}", v, epoch)
+                            if wandb_runner is not None:
+                                wandb_runner.log({
+                                    f'Dice-{class_names[_c + 1]}': v,
+                                    f'Epoch': epoch
+                                })
                             logger.debug(
                                 f"Evaluation metric - class {_c + 1} : {v:.4f}"
                             )
@@ -737,6 +762,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     if val_times > 0:
                         continue
                     writer.add_scalar("val/acc", avg_metric, epoch)
+                    if wandb_runner is not None:
+                        wandb_runner.log({
+                            'Average Dice': avg_metric,
+                            'Epoch': epoch
+                        })
+
                     if avg_metric > best_metric or save_last:
                         best_metric = avg_metric
                         best_metric_epoch = epoch

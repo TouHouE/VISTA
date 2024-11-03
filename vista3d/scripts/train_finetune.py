@@ -105,7 +105,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     )
     logging.config.dictConfig(CONFIG)
     logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
-
+    if (debug_config := parser.get_parsed_content('debug')).pop('enable'):
+        for key, value in debug_config.items():
+            parser.config[key] = value
     # training hyperparameters - workflow
     device = (
         torch.device(f"cuda:{os.environ['LOCAL_RANK']}")

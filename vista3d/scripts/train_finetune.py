@@ -82,7 +82,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     os.makedirs(ckpt_path, exist_ok=True)
     if world_size == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
-        with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
+        wandb_cfg = parser.get_parsed_content('wandb')
+        wandb_name = wandb_cfg['name']
+        wandb_dir = os.path.join(parser.get_parsed_content('bundle_root'), wandb_name)
+        wandb_runner = wandb.init(dir=wandb_dir, project='Vista3D', tags=['finetune'],
+                                  config=parser.config)
+    with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
     random_seed = parser.get_parsed_content("random_seed")
     save_last = parser.get_parsed_content(
@@ -303,11 +308,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         prefetch_factor=1,
         persistent_workers=False,
     )
-    wandb_runner = None
-    if world_size > 1 and wandb_runner is None and (wandb_cfg := parser.get_parsed_content('wandb'))['enable']:
-        wandb_name = wandb_cfg['name']
-        wandb_dir = os.path.join(parser.get_parsed_content('bundle_root'), wandb_cfg['name'])
-        wandb_runner = wandb.init(dir=parser.get_parsed_content('bundle_root'), project='Vista3D', tags=['finetune'], config=parser.config)
+
 
 
     # ---------  Start training  ---------

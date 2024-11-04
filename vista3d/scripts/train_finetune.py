@@ -85,8 +85,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         wandb_cfg = parser.get_parsed_content('wandb')
         wandb_name = wandb_cfg['name']
         wandb_dir = os.path.join(parser.get_parsed_content('bundle_root'), wandb_name)
+        if not os.path.exists(wandb_dir):
+            print(f'wandb Target: {wandb_dir} does not exist, try to create one...')
+            os.makedirs(wandb_dir, exist_ok=True)
         if (wtoken := wandb_cfg.get('token')) is not None:
             wandb.login('allow', key=wtoken)
+
         wandb_runner = wandb.init(dir=wandb_dir, project='Vista3D', tags=['finetune'],
                                   config=parser.config)
     with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:

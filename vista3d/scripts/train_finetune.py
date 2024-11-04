@@ -92,7 +92,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             wandb.login('allow', key=wtoken)
 
         wandb_runner = wandb.init(dir=wandb_dir, project='Vista3D', tags=['finetune'],
-                                  config=parser.config)
+                                  config=parser.config, name=wandb_name)
     with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
     random_seed = parser.get_parsed_content("random_seed")

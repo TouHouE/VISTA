@@ -85,6 +85,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         wandb_cfg = parser.get_parsed_content('wandb')
         wandb_name = wandb_cfg['name']
         wandb_dir = os.path.join(parser.get_parsed_content('bundle_root'), wandb_name)
+        if (wtoken := wandb_cfg.get('token')) is not None:
+            wandb.login('allow', key=wtoken)
         wandb_runner = wandb.init(dir=wandb_dir, project='Vista3D', tags=['finetune'],
                                   config=parser.config)
     with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
@@ -111,7 +113,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logging.config.dictConfig(CONFIG)
     logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
     if (debug_config := parser.get_parsed_content('debug')).pop('enable'):
+        print(f'Debug Mode')
         for key, value in debug_config.items():
+            print(f'Key[{key}] from {parser.get_parsed_content(key)} ---> {value}')
             parser.config[key] = value
     # training hyperparameters - workflow
     device = (
@@ -555,7 +559,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     )
                     if wandb_runner is not None:
                         wandb_runner.log({
-                            'Train Loss': loss.item(),
+                            'Train step loss': loss.item(),
                             'Train Steps': epoch_len * _round + step
                         })
 
@@ -569,6 +573,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 f"{time.time() - e_time:.4f} Epoch {epoch} average loss: {loss_torch_epoch:.4f}, "
                 f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}"
             )
+            if wandb_runner is not None:
+                wandb_runner.log({
+                    'Epoch Train Loss': loss_torch_epoch,
+                    'Epoch': epoch
+                })
 
         try:
             del inputs, labels, inputs_l, labels_l, batch_data
